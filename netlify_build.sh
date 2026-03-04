@@ -11,6 +11,7 @@ if ! command -v cargo >/dev/null 2>&1; then
 fi
 
 export PATH="$HOME/.cargo/bin:$PATH"
+export PIP_PREFER_BINARY=1
 
 echo "[Netlify] Upgrading pip/setuptools/wheel"
 python -m pip install --upgrade pip setuptools wheel
