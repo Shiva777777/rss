@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RSS – Attendance & User Management System</title>
+  <meta name="description" content="RSS Attendance and User Management System – Mark your daily attendance securely with JWT authentication."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+
+<!-- ═══════════════════════  LOADER  ═══════════════════════ -->
+<div id="loader" class="loader-overlay">
+  <div class="loader-ring"></div>
+</div>
+
+<!-- ═══════════════════════  NAV  ═══════════════════════ -->
+<nav class="navbar" id="navbar">
+  <div class="nav-brand">
+    <span class="brand-icon">🕉️</span>
+    <span class="brand-text">RSS <span class="brand-accent">System</span></span>
+  </div>
+  <div class="nav-links" id="navLinks">
+    <a href="#" class="nav-link active" data-page="home" id="navHome">Home</a>
+    <a href="#" class="nav-link" data-page="dashboard" id="navDashboard">Dashboard</a>
+    <a href="#" class="nav-link" data-page="admin" id="navAdmin" style="display:none">Admin</a>
+  </div>
+  <div class="nav-actions">
+    <div id="userBadge" class="user-badge" style="display:none">
+      <span class="user-avatar" id="userAvatar">U</span>
+      <span class="user-name" id="userNameNav">User</span>
+      <button class="btn-logout" id="btnLogout">Logout</button>
+    </div>
+    <button class="btn-primary" id="btnOpenLogin" style="display:none">Login</button>
+  </div>
+</nav>
+
+<!-- ═══════════════════════  AUTH MODAL  ═══════════════════════ -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal-card">
+    <button class="modal-close" id="modalClose">✕</button>
+
+    <!-- Tab switcher -->
+    <div class="modal-tabs">
+      <button class="tab-btn active" id="tabLogin">Login</button>
+      <button class="tab-btn" id="tabRegister">Register</button>
+      <button class="tab-btn" id="tabForgot">Forgot</button>
+    </div>
+
+    <!-- Login Form -->
+    <div class="tab-content" id="formLogin">
+      <h2 class="modal-title">Welcome Back</h2>
+      <p class="modal-sub">Sign in to mark your attendance</p>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email"/>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <div class="input-eye">
+          <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password"/>
+          <span class="eye-toggle" onclick="toggleEye('loginPassword',this)">👁</span>
+        </div>
+      </div>
+      <div id="loginError" class="form-error"></div>
+      <button class="btn-submit" id="btnLogin">Sign In</button>
+    </div>
+
+    <!-- Register Form -->
+    <div class="tab-content hidden" id="formRegister">
+      <h2 class="modal-title">Create Account</h2>
+      <p class="modal-sub">Join the RSS System today</p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input type="text" id="regName" placeholder="Ramesh Sharma"/>
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="tel" id="regPhone" placeholder="+91 9876543210"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Email *</label>
+        <input type="email" id="regEmail" placeholder="you@example.com"/>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>State</label>
+          <input type="text" id="regState" placeholder="Uttar Pradesh"/>
+        </div>
+        <div class="form-group">
+          <label>City</label>
+          <input type="text" id="regCity" placeholder="Ayodhya"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Password *</label>
+        <div class="input-eye">
+          <input type="password" id="regPassword" placeholder="min 8 characters"/>
+          <span class="eye-toggle" onclick="toggleEye('regPassword',this)">👁</span>
+        </div>
+      </div>
+      <div id="registerError" class="form-error"></div>
+      <div id="registerSuccess" class="form-success"></div>
+      <button class="btn-submit" id="btnRegister">Create Account</button>
+    </div>
+
+    <!-- Forgot Password Form -->
+    <div class="tab-content hidden" id="formForgot">
+      <h2 class="modal-title">Reset Password</h2>
+      <p class="modal-sub">Enter your email to receive a reset link</p>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="forgotEmail" placeholder="you@example.com"/>
+      </div>
+      <div id="forgotError" class="form-error"></div>
+      <div id="forgotSuccess" class="form-success"></div>
+      <button class="btn-submit" id="btnForgot">Send Reset Link</button>
+      <div id="resetTokenSection" class="hidden mt-1">
+        <div class="form-group">
+          <label>Reset Token (from debug)</label>
+          <input type="text" id="resetToken" placeholder="Paste token here"/>
+        </div>
+        <div class="form-group">
+          <label>New Password</label>
+          <input type="password" id="resetNewPass" placeholder="min 8 characters"/>
+        </div>
+        <div id="resetError" class="form-error"></div>
+        <div id="resetSuccess" class="form-success"></div>
+        <button class="btn-submit btn-secondary" id="btnResetPassword">Reset Password</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════  HOME PAGE  ═══════════════════════ -->
+<div id="pageHome" class="page active">
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-glow glow-1"></div>
+    <div class="hero-glow glow-2"></div>
+    <div class="hero-content">
+      <div class="hero-badge animate-fade-up">🕉️ RSS Attendance System</div>
+      <h1 class="hero-title animate-fade-up delay-1">
+        Mark Your Daily<br/>
+        <span class="gradient-text">Attendance</span>
+      </h1>
+      <p class="hero-sub animate-fade-up delay-2">
+        Secure, fast and reliable attendance tracking with JWT authentication,
+        admin insights, and real-time monitoring.
+      </p>
+      <div class="hero-cta animate-fade-up delay-3">
+        <button class="btn-hero-primary" id="btnGetStarted">Get Started</button>
+        <button class="btn-hero-secondary" id="btnLearnMore">Learn More ↓</button>
+      </div>
+    </div>
+    <div class="hero-visual animate-fade-up delay-2">
+      <div class="attendance-card-demo">
+        <div class="demo-title">🕉️ Today's Attendance</div>
+        <div class="demo-date" id="demoDate"></div>
+        <button class="demo-btn">Jai Shree Ram 🙏</button>
+        <div class="demo-streak"><span class="streak-dot"></span> 7 day streak</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features" id="features">
+    <h2 class="section-title">Everything You Need</h2>
+    <p class="section-sub">A complete attendance system powered by modern technology</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🔐</div>
+        <h3>Secure Auth</h3>
+        <p>bcrypt password hashing, JWT tokens, and role-based access control</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📅</div>
+        <h3>Daily Attendance</h3>
+        <p>One-click attendance marking with full history and streak tracking</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">👑</div>
+        <h3>Admin Panel</h3>
+        <p>Complete visibility into users, daily attendance, and system metrics</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Monitoring</h3>
+        <p>Prometheus metrics and Grafana dashboards for real-time insights</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🐳</div>
+        <h3>Dockerized</h3>
+        <p>Fully containerized with Docker Compose for easy deployment</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>FastAPI Backend</h3>
+        <p>High-performance async API with automatic OpenAPI documentation</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ═══════════════════════  DASHBOARD PAGE  ═══════════════════════ -->
+<div id="pageDashboard" class="page hidden">
+  <div class="dash-container">
+    <!-- Welcome Banner -->
+    <div class="dash-welcome">
+      <div>
+        <h2 class="dash-greeting" id="dashGreeting">Good morning! 👋</h2>
+        <p class="dash-sub">Here's your attendance snapshot</p>
+      </div>
+      <div class="dash-date-badge" id="dashDateBadge"></div>
+    </div>
+
+    <!-- Attendance Card -->
+    <div class="attendance-main-card" id="attendanceCard">
+      <div class="att-card-glow"></div>
+      <div class="att-top">
+        <div class="att-status" id="attStatus">
+          <div class="status-ring" id="statusRing"></div>
+          <span id="statusText">Checking...</span>
+        </div>
+        <div class="att-streak" id="attStreak"></div>
+      </div>
+      <div class="att-center">
+        <button class="btn-jai-shree-ram" id="btnMarkAttendance" disabled>
+          <span class="jsram-icon">🙏</span>
+          <span id="btnAttText">Jai Shree Ram</span>
+        </button>
+        <p class="att-hint" id="attHint">Loading...</p>
+      </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon">📅</div>
+        <div class="stat-val" id="statTotal">—</div>
+        <div class="stat-lbl">Total Days</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🏆</div>
+        <div class="stat-val" id="statStreak">—</div>
+        <div class="stat-lbl">Current Streak</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📆</div>
+        <div class="stat-val" id="statMonth">—</div>
+        <div class="stat-lbl">This Month</div>
+      </div>
+    </div>
+
+    <!-- Profile + History -->
+    <div class="dash-grid-2">
+      <!-- Profile -->
+      <div class="dash-card">
+        <div class="card-header">
+          <h3>My Profile</h3>
+          <button class="btn-edit" id="btnEditProfile">Edit</button>
+        </div>
+        <div class="profile-info" id="profileInfo">
+          <div class="profile-row"><span class="pi-label">Name</span><span class="pi-val" id="piName">—</span></div>
+          <div class="profile-row"><span class="pi-label">Email</span><span class="pi-val" id="piEmail">—</span></div>
+          <div class="profile-row"><span class="pi-label">Phone</span><span class="pi-val" id="piPhone">—</span></div>
+          <div class="profile-row"><span class="pi-label">State</span><span class="pi-val" id="piState">—</span></div>
+          <div class="profile-row"><span class="pi-label">City</span><span class="pi-val" id="piCity">—</span></div>
+        </div>
+        <!-- Edit form (hidden) -->
+        <div id="editProfileForm" class="hidden">
+          <div class="form-group"><label>Name</label><input type="text" id="epName"/></div>
+          <div class="form-group"><label>Phone</label><input type="text" id="epPhone"/></div>
+          <div class="form-group"><label>State</label><input type="text" id="epState"/></div>
+          <div class="form-group"><label>City</label><input type="text" id="epCity"/></div>
+          <div class="form-row">
+            <button class="btn-submit btn-sm" id="btnSaveProfile">Save</button>
+            <button class="btn-cancel btn-sm" id="btnCancelEdit">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- History -->
+      <div class="dash-card">
+        <div class="card-header"><h3>Attendance History</h3></div>
+        <div class="history-list" id="historyList">
+          <div class="history-empty">Loading history...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════  ADMIN PAGE  ═══════════════════════ -->
+<div id="pageAdmin" class="page hidden">
+  <div class="admin-container">
+    <div class="admin-header">
+      <h2>⚙️ Admin Panel</h2>
+      <p>System overview and management</p>
+    </div>
+
+    <!-- Admin Stats -->
+    <div class="admin-stats-grid">
+      <div class="admin-stat-card gradient-blue">
+        <div class="ast-label">Total Users</div>
+        <div class="ast-val" id="adminTotalUsers">—</div>
+        <div class="ast-icon">👥</div>
+      </div>
+      <div class="admin-stat-card gradient-green">
+        <div class="ast-label">Active Users</div>
+        <div class="ast-val" id="adminActiveUsers">—</div>
+        <div class="ast-icon">✅</div>
+      </div>
+      <div class="admin-stat-card gradient-orange">
+        <div class="ast-label">Today's Attendance</div>
+        <div class="ast-val" id="adminTodayAtt">—</div>
+        <div class="ast-icon">📅</div>
+      </div>
+      <div class="admin-stat-card gradient-purple">
+        <div class="ast-label">All-Time Records</div>
+        <div class="ast-val" id="adminTotalAtt">—</div>
+        <div class="ast-icon">📊</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="admin-tabs">
+      <button class="admin-tab active" data-atab="users">Users</button>
+      <button class="admin-tab" data-atab="attendance">Attendance</button>
+      <button class="admin-tab" data-atab="chart">Daily Chart</button>
+    </div>
+
+    <!-- Users Table -->
+    <div class="admin-section" id="atab-users">
+      <div class="admin-filter-row">
+        <input type="text" id="userSearch" class="text-input" placeholder="Search name, email, phone, city"/>
+        <select id="userRoleFilter" class="select-input">
+          <option value="">All Roles</option>
+          <option value="admin">Admin</option>
+          <option value="user">User</option>
+        </select>
+        <select id="userStatusFilter" class="select-input">
+          <option value="">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <button class="btn-filter" id="btnUserFilter">Apply</button>
+        <button class="btn-filter btn-secondary" id="btnUserClear">Clear</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="usersTable">
+          <thead>
+            <tr><th>#</th><th>Name</th><th>Email</th><th>Phone</th><th>State</th><th>City</th><th>Role</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody id="usersTableBody"><tr><td colspan="9" class="loading-row">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Attendance Table -->
+    <div class="admin-section hidden" id="atab-attendance">
+      <div class="att-filter-row">
+        <input type="date" id="filterDateFrom" class="date-input"/>
+        <input type="date" id="filterDateTo" class="date-input"/>
+        <input type="text" id="attUserQuery" class="text-input" placeholder="Search user/email"/>
+        <button class="btn-filter" id="btnFilter">Apply</button>
+        <button class="btn-filter btn-secondary" id="btnClearFilter">Clear</button>
+        <button class="btn-filter btn-secondary" id="btnExportAttendance">Export CSV</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr><th>#</th><th>User</th><th>Email</th><th>Date</th><th>Marked At</th><th>IP</th></tr>
+          </thead>
+          <tbody id="attTableBody"><tr><td colspan="6" class="loading-row">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Daily Chart -->
+    <div class="admin-section hidden" id="atab-chart">
+      <div class="chart-toolbar">
+        <select id="chartDays" class="select-input">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+        <button class="btn-filter" id="btnRefreshChart">Refresh</button>
+      </div>
+      <canvas id="dailyChart" height="120"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════  TOAST  ═══════════════════════ -->
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

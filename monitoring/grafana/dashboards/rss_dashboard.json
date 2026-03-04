@@ -1,0 +1,272 @@
+{
+    "annotations": {
+        "list": []
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": 1,
+    "links": [],
+    "panels": [
+        {
+            "datasource": "Prometheus",
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "thresholds"
+                    },
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "yellow",
+                                "value": 100
+                            },
+                            {
+                                "color": "red",
+                                "value": 500
+                            }
+                        ]
+                    },
+                    "unit": "ms"
+                }
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 6,
+                "x": 0,
+                "y": 0
+            },
+            "id": 1,
+            "options": {
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ]
+                },
+                "orientation": "auto",
+                "textMode": "auto",
+                "colorMode": "background",
+                "graphMode": "none"
+            },
+            "title": "Avg API Response Time",
+            "type": "stat",
+            "targets": [
+                {
+                    "expr": "rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m]) * 1000",
+                    "legendFormat": "Avg Response Time",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "datasource": "Prometheus",
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "thresholds"
+                    },
+                    "unit": "reqps"
+                }
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 6,
+                "x": 6,
+                "y": 0
+            },
+            "id": 2,
+            "options": {
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ]
+                },
+                "orientation": "auto",
+                "textMode": "auto",
+                "colorMode": "value",
+                "graphMode": "area"
+            },
+            "title": "Requests per Second",
+            "type": "stat",
+            "targets": [
+                {
+                    "expr": "sum(rate(http_requests_total[5m]))",
+                    "legendFormat": "Req/s",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "datasource": "Prometheus",
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "thresholds"
+                    },
+                    "unit": "short"
+                }
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 6,
+                "x": 12,
+                "y": 0
+            },
+            "id": 3,
+            "options": {
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ]
+                },
+                "colorMode": "background"
+            },
+            "title": "Active Connections",
+            "type": "stat",
+            "targets": [
+                {
+                    "expr": "rss_inprogress",
+                    "legendFormat": "In Progress",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "datasource": "Prometheus",
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "thresholds"
+                    },
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "red",
+                                "value": 1
+                            }
+                        ]
+                    }
+                }
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 6,
+                "x": 18,
+                "y": 0
+            },
+            "id": 4,
+            "options": {
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ]
+                },
+                "colorMode": "background"
+            },
+            "title": "5xx Errors",
+            "type": "stat",
+            "targets": [
+                {
+                    "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) or vector(0)",
+                    "legendFormat": "5xx Rate",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "datasource": "Prometheus",
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "lineWidth": 2,
+                        "fillOpacity": 10
+                    }
+                }
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 4
+            },
+            "id": 5,
+            "title": "HTTP Requests by Status Code",
+            "type": "timeseries",
+            "targets": [
+                {
+                    "expr": "sum by(status) (rate(http_requests_total[5m]))",
+                    "legendFormat": "{{status}}",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "datasource": "Prometheus",
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "lineWidth": 2,
+                        "fillOpacity": 10
+                    },
+                    "unit": "s"
+                }
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 4
+            },
+            "id": 6,
+            "title": "Request Duration Percentiles",
+            "type": "timeseries",
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+                    "legendFormat": "p50",
+                    "refId": "A"
+                },
+                {
+                    "expr": "histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+                    "legendFormat": "p90",
+                    "refId": "B"
+                },
+                {
+                    "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+                    "legendFormat": "p99",
+                    "refId": "C"
+                }
+            ]
+        }
+    ],
+    "refresh": "30s",
+    "schemaVersion": 39,
+    "tags": [
+        "rss",
+        "fastapi",
+        "python"
+    ],
+    "time": {
+        "from": "now-1h",
+        "to": "now"
+    },
+    "title": "RSS System – API Monitoring",
+    "uid": "rss-api-dashboard",
+    "version": 1
+}
