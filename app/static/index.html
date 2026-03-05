@@ -293,6 +293,43 @@
         </div>
       </div>
     </div>
+
+    <!-- Leave Management -->
+    <div class="dash-grid-2 leave-grid">
+      <div class="dash-card">
+        <div class="card-header"><h3>Apply for Leave</h3></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Start Date</label>
+            <input type="date" id="leaveStartDate"/>
+          </div>
+          <div class="form-group">
+            <label>End Date</label>
+            <input type="date" id="leaveEndDate"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Reason</label>
+          <textarea id="leaveReason" class="text-area" rows="4" placeholder="Write reason for leave"></textarea>
+        </div>
+        <div id="leaveFormError" class="form-error"></div>
+        <button class="btn-submit btn-sm" id="btnApplyLeave">Submit Leave Request</button>
+      </div>
+
+      <div class="dash-card">
+        <div class="card-header"><h3>My Leave Requests</h3></div>
+        <div class="table-wrapper">
+          <table class="data-table leave-table">
+            <thead>
+              <tr><th>#</th><th>Start</th><th>End</th><th>Status</th><th>Reason</th><th>Action</th></tr>
+            </thead>
+            <tbody id="leaveHistoryTableBody">
+              <tr><td colspan="6" class="loading-row">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -332,6 +369,7 @@
     <div class="admin-tabs">
       <button class="admin-tab active" data-atab="users">Users</button>
       <button class="admin-tab" data-atab="attendance">Attendance</button>
+      <button class="admin-tab" data-atab="leaves">Leaves</button>
       <button class="admin-tab" data-atab="chart">Daily Chart</button>
     </div>
 
@@ -341,7 +379,9 @@
         <input type="text" id="userSearch" class="text-input" placeholder="Search name, email, phone, city"/>
         <select id="userRoleFilter" class="select-input">
           <option value="">All Roles</option>
+          <option value="super_admin">Super Admin</option>
           <option value="admin">Admin</option>
+          <option value="moderator">Moderator</option>
           <option value="user">User</option>
         </select>
         <select id="userStatusFilter" class="select-input">
@@ -375,25 +415,89 @@
       <div class="table-wrapper">
         <table class="data-table">
           <thead>
-            <tr><th>#</th><th>User</th><th>Email</th><th>Date</th><th>Marked At</th><th>IP</th></tr>
+            <tr><th>#</th><th>User</th><th>Email</th><th>Date</th><th>Time</th><th>Marked At</th><th>IP</th><th>City</th><th>Coordinates</th></tr>
           </thead>
-          <tbody id="attTableBody"><tr><td colspan="6" class="loading-row">Loading...</td></tr></tbody>
+          <tbody id="attTableBody"><tr><td colspan="9" class="loading-row">Loading...</td></tr></tbody>
         </table>
       </div>
     </div>
 
-    <!-- Daily Chart -->
+    <!-- Leave Requests -->
+    <div class="admin-section hidden" id="atab-leaves">
+      <div class="att-filter-row">
+        <select id="leaveStatusFilter" class="select-input">
+          <option value="">All Status</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <input type="text" id="leaveUserQuery" class="text-input" placeholder="Search user/email"/>
+        <button class="btn-filter" id="btnLeaveFilter">Apply</button>
+        <button class="btn-filter btn-secondary" id="btnLeaveClear">Clear</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr><th>#</th><th>User</th><th>Email</th><th>Start Date</th><th>End Date</th><th>Status</th><th>Reason</th><th>Action</th></tr>
+          </thead>
+          <tbody id="adminLeavesTableBody"><tr><td colspan="8" class="loading-row">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Analytics Dashboard -->
     <div class="admin-section hidden" id="atab-chart">
       <div class="chart-toolbar">
         <select id="chartDays" class="select-input">
           <option value="7">Last 7 days</option>
           <option value="30" selected>Last 30 days</option>
           <option value="90">Last 90 days</option>
+          <option value="180">Last 180 days</option>
+        </select>
+        <select id="chartMonths" class="select-input">
+          <option value="6">Last 6 months</option>
+          <option value="12" selected>Last 12 months</option>
+          <option value="18">Last 18 months</option>
+          <option value="24">Last 24 months</option>
         </select>
         <button class="btn-filter" id="btnRefreshChart">Refresh</button>
       </div>
-      <canvas id="dailyChart" height="120"></canvas>
+
+      <div class="analytics-trend-grid">
+        <div class="analytics-trend-card">
+          <div class="analytics-label">Current Period</div>
+          <div class="analytics-value" id="trendCurrentTotal">—</div>
+        </div>
+        <div class="analytics-trend-card">
+          <div class="analytics-label">Previous Period</div>
+          <div class="analytics-value" id="trendPreviousTotal">—</div>
+        </div>
+        <div class="analytics-trend-card">
+          <div class="analytics-label">Growth</div>
+          <div class="analytics-value" id="trendGrowth">—</div>
+        </div>
+        <div class="analytics-trend-card">
+          <div class="analytics-label">Avg/Day</div>
+          <div class="analytics-value" id="trendAvgPerDay">—</div>
+        </div>
+      </div>
+
+      <div class="analytics-chart-grid">
+        <div class="analytics-chart-card">
+          <h4>Attendance Per Day</h4>
+          <canvas id="dailyLineChart" height="120"></canvas>
+        </div>
+        <div class="analytics-chart-card">
+          <h4>Monthly Attendance</h4>
+          <canvas id="monthlyBarChart" height="120"></canvas>
+        </div>
+        <div class="analytics-chart-card">
+          <h4>Active vs Inactive Users</h4>
+          <canvas id="userStatusPieChart" height="160"></canvas>
+        </div>
+      </div>
     </div>
+
   </div>
 </div>
 

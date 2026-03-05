@@ -1,9 +1,10 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+
+from app import models
 from app.database import get_db
 from app.security import decode_access_token
-from app import models
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
@@ -18,11 +19,11 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     payload = decode_access_token(token)
-    if payload is None:
+    if not payload:
         raise credentials_exception
 
-    email: str = payload.get("sub")
-    if email is None:
+    email = payload.get("sub")
+    if not email:
         raise credentials_exception
 
     user = db.query(models.User).filter(models.User.email == email).first()
@@ -31,12 +32,25 @@ def get_current_user(
     return user
 
 
-def get_current_admin(
-    current_user: models.User = Depends(get_current_user),
-) -> models.User:
-    if current_user.role != models.UserRole.admin:
+def get_current_admin(current_user: models.User = Depends(get_current_user)) -> models.User:
+    if current_user.role not in {models.UserRole.super_admin, models.UserRole.admin}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin privileges required",
         )
     return current_user
+
+
+def require_roles(*allowed_roles: models.UserRole):
+    allowed_set = set(allowed_roles)
+
+    def role_checker(current_user: models.User = Depends(get_current_user)) -> models.User:
+        if current_user.role not in allowed_set:
+            allowed_names = ", ".join(sorted(role.value for role in allowed_set))
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied. Required role: {allowed_names}",
+            )
+        return current_user
+
+    return role_checker

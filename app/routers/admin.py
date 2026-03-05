@@ -1,75 +1,32 @@
 from datetime import date
 import csv
 from io import StringIO
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.database import get_db
-from app.dependencies import get_current_admin
+from app.dependencies import require_roles
+from app.services.admin_service import AdminService
+from app.services.leave_service import LeaveService
+from app.services.notification_service import NotificationService
 
 router = APIRouter()
-
-
-def _apply_attendance_filters(
-    query,
-    filter_date: Optional[date] = None,
-    date_from: Optional[date] = None,
-    date_to: Optional[date] = None,
-    user_query: Optional[str] = None,
-):
-    if filter_date:
-        query = query.filter(models.Attendance.date == filter_date)
-    else:
-        if date_from:
-            query = query.filter(models.Attendance.date >= date_from)
-        if date_to:
-            query = query.filter(models.Attendance.date <= date_to)
-
-    if user_query:
-        pattern = f"%{user_query.strip()}%"
-        query = query.filter(
-            or_(
-                models.User.name.ilike(pattern),
-                models.User.email.ilike(pattern),
-            )
-        )
-
-    return query
 
 
 @router.get("/stats", response_model=schemas.AdminStats)
 def get_stats(
     db: Session = Depends(get_db),
-    _: models.User = Depends(get_current_admin),
+    _: models.User = Depends(require_roles(models.UserRole.super_admin, models.UserRole.admin)),
 ):
-    """Get overall system statistics."""
-    total_users = db.query(func.count(models.User.id)).scalar()
-    active_users = (
-        db.query(func.count(models.User.id))
-        .filter(models.User.is_active.is_(True))
-        .scalar()
-    )
-    total_atts = db.query(func.count(models.Attendance.id)).scalar()
-    today_atts = (
-        db.query(func.count(models.Attendance.id))
-        .filter(models.Attendance.date == date.today())
-        .scalar()
-    )
-
-    return {
-        "total_users": total_users,
-        "active_users": active_users,
-        "total_attendances": total_atts,
-        "today_attendances": today_atts,
-    }
+    service = AdminService(db)
+    return service.get_stats()
 
 
-@router.get("/users", response_model=List[schemas.UserResponse])
+@router.get("/users", response_model=list[schemas.UserResponse])
 def list_users(
     skip: int = 0,
     limit: int = 50,
@@ -77,30 +34,26 @@ def list_users(
     role: Optional[models.UserRole] = Query(None, description="Filter by role"),
     is_active: Optional[bool] = Query(None, description="Filter by active/inactive"),
     db: Session = Depends(get_db),
-    _: models.User = Depends(get_current_admin),
+    _: models.User = Depends(require_roles(models.UserRole.super_admin, models.UserRole.admin)),
 ):
-    """List users with optional filters (admin only)."""
-    query = db.query(models.User)
+    service = AdminService(db)
+    return service.list_users(
+        skip=skip,
+        limit=limit,
+        search=search,
+        role=role,
+        is_active=is_active,
+    )
 
-    if search:
-        pattern = f"%{search.strip()}%"
-        query = query.filter(
-            or_(
-                models.User.name.ilike(pattern),
-                models.User.email.ilike(pattern),
-                models.User.phone.ilike(pattern),
-                models.User.state.ilike(pattern),
-                models.User.city.ilike(pattern),
-            )
-        )
 
-    if role is not None:
-        query = query.filter(models.User.role == role)
-
-    if is_active is not None:
-        query = query.filter(models.User.is_active.is_(is_active))
-
-    return query.order_by(models.User.created_at.desc()).offset(skip).limit(limit).all()
+@router.post("/users", response_model=schemas.UserResponse)
+def create_user(
+    payload: schemas.AdminCreateUserRequest,
+    db: Session = Depends(get_db),
+    actor: models.User = Depends(require_roles(models.UserRole.super_admin, models.UserRole.admin)),
+):
+    service = AdminService(db)
+    return service.create_user_by_admin(payload=payload, actor=actor)
 
 
 @router.patch("/users/{user_id}/status")
@@ -108,42 +61,37 @@ def update_user_status(
     user_id: int,
     is_active: bool = Query(..., description="Set true to activate, false to deactivate"),
     db: Session = Depends(get_db),
-    admin: models.User = Depends(get_current_admin),
+    admin: models.User = Depends(require_roles(models.UserRole.super_admin, models.UserRole.admin)),
 ):
-    """Activate or deactivate a user account."""
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    if user.id == admin.id:
-        raise HTTPException(status_code=400, detail="Cannot change your own active status")
-
-    user.is_active = is_active
-    db.commit()
-    db.refresh(user)
-
+    service = AdminService(db)
+    user = service.update_user_status(user_id=user_id, is_active=is_active, admin=admin)
     action = "activated" if is_active else "deactivated"
     return {"message": f"User {user.email} {action}"}
+
+
+@router.patch("/users/{user_id}/role", response_model=schemas.UserResponse)
+def update_user_role(
+    user_id: int,
+    payload: schemas.UserRoleUpdateRequest,
+    db: Session = Depends(get_db),
+    actor: models.User = Depends(require_roles(models.UserRole.super_admin)),
+):
+    service = AdminService(db)
+    return service.update_user_role(user_id=user_id, payload=payload, actor=actor)
 
 
 @router.delete("/users/{user_id}")
 def deactivate_user(
     user_id: int,
     db: Session = Depends(get_db),
-    admin: models.User = Depends(get_current_admin),
+    admin: models.User = Depends(require_roles(models.UserRole.super_admin, models.UserRole.admin)),
 ):
-    """Backward-compatible endpoint to deactivate a user account."""
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    if user.id == admin.id:
-        raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
-
-    user.is_active = False
-    db.commit()
+    service = AdminService(db)
+    user = service.update_user_status(user_id=user_id, is_active=False, admin=admin)
     return {"message": f"User {user.email} deactivated"}
 
 
-@router.get("/attendance")
+@router.get("/attendance", response_model=schemas.AttendanceListResponse)
 def list_attendance(
     filter_date: Optional[date] = Query(None, description="Filter by specific date (YYYY-MM-DD)"),
     date_from: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
@@ -152,37 +100,19 @@ def list_attendance(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    _: models.User = Depends(get_current_admin),
+    _: models.User = Depends(
+        require_roles(models.UserRole.super_admin, models.UserRole.admin, models.UserRole.moderator)
+    ),
 ):
-    """List attendance records with optional date/user filters."""
-    query = (
-        db.query(models.Attendance, models.User.name, models.User.email)
-        .join(models.User, models.Attendance.user_id == models.User.id)
-        .order_by(models.Attendance.marked_at.desc())
-    )
-    query = _apply_attendance_filters(
-        query=query,
+    service = AdminService(db)
+    total, records = service.list_attendance(
         filter_date=filter_date,
         date_from=date_from,
         date_to=date_to,
         user_query=user_query,
+        skip=skip,
+        limit=limit,
     )
-
-    total = query.count()
-    results = query.offset(skip).limit(limit).all()
-
-    records = [
-        {
-            "id": att.id,
-            "user_id": att.user_id,
-            "user_name": name,
-            "user_email": email,
-            "date": att.date,
-            "marked_at": att.marked_at,
-            "ip_address": att.ip_address,
-        }
-        for att, name, email in results
-    ]
     return {"total": total, "records": records}
 
 
@@ -194,37 +124,56 @@ def export_attendance_csv(
     user_query: Optional[str] = Query(None),
     max_rows: int = Query(5000, ge=1, le=20000),
     db: Session = Depends(get_db),
-    _: models.User = Depends(get_current_admin),
+    _: models.User = Depends(
+        require_roles(models.UserRole.super_admin, models.UserRole.admin, models.UserRole.moderator)
+    ),
 ):
-    """Export attendance records as CSV."""
-    query = (
-        db.query(models.Attendance, models.User.name, models.User.email)
-        .join(models.User, models.Attendance.user_id == models.User.id)
-        .order_by(models.Attendance.marked_at.desc())
-    )
-    query = _apply_attendance_filters(
-        query=query,
+    service = AdminService(db)
+    total, records = service.list_attendance(
         filter_date=filter_date,
         date_from=date_from,
         date_to=date_to,
         user_query=user_query,
+        skip=0,
+        limit=max_rows,
     )
 
-    rows = query.limit(max_rows).all()
+    if total == 0:
+        raise HTTPException(status_code=404, detail="No attendance records found for export")
 
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(["attendance_id", "user_id", "user_name", "user_email", "date", "marked_at", "ip_address"])
-    for att, name, email in rows:
+    writer.writerow(
+        [
+            "attendance_id",
+            "user_id",
+            "user_name",
+            "user_email",
+            "date",
+            "time",
+            "marked_at",
+            "ip_address",
+            "latitude",
+            "longitude",
+            "city",
+            "notes",
+        ]
+    )
+    for record in records:
         writer.writerow(
             [
-                att.id,
-                att.user_id,
-                name,
-                email,
-                att.date.isoformat() if att.date else "",
-                att.marked_at.isoformat() if att.marked_at else "",
-                att.ip_address or "",
+                record["id"],
+                record["user_id"],
+                record["user_name"],
+                record["user_email"],
+                record["date"].isoformat() if record["date"] else "",
+                record["marked_time"].isoformat() if record["marked_time"] else "",
+                record["marked_at"].isoformat() if record["marked_at"] else "",
+                record["ip_address"] or "",
+                record["latitude"] if record["latitude"] is not None else "",
+                record["longitude"] if record["longitude"] is not None else "",
+                record["city"] or "",
+                record["notes"] or "",
             ]
         )
 
@@ -240,17 +189,171 @@ def export_attendance_csv(
 def daily_attendance_summary(
     days: int = Query(30, ge=1, le=365, description="Number of past days to summarize"),
     db: Session = Depends(get_db),
-    _: models.User = Depends(get_current_admin),
+    _: models.User = Depends(
+        require_roles(models.UserRole.super_admin, models.UserRole.admin, models.UserRole.moderator)
+    ),
 ):
-    """Get daily attendance count for the past N days."""
-    rows = (
-        db.query(
-            models.Attendance.date,
-            func.count(models.Attendance.id).label("count"),
-        )
-        .group_by(models.Attendance.date)
-        .order_by(models.Attendance.date.desc())
-        .limit(days)
-        .all()
+    service = AdminService(db)
+    return service.daily_summary(days=days)
+
+
+@router.get("/analytics/daily", response_model=list[schemas.DailyAttendancePoint])
+def analytics_daily_attendance(
+    days: int = Query(30, ge=7, le=180),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(
+        require_roles(models.UserRole.super_admin, models.UserRole.admin, models.UserRole.moderator)
+    ),
+):
+    service = AdminService(db)
+    return service.get_daily_attendance_analytics(days=days)
+
+
+@router.get("/analytics/monthly", response_model=list[schemas.MonthlyAttendancePoint])
+def analytics_monthly_attendance(
+    months: int = Query(12, ge=3, le=24),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(
+        require_roles(models.UserRole.super_admin, models.UserRole.admin, models.UserRole.moderator)
+    ),
+):
+    service = AdminService(db)
+    return service.get_monthly_attendance_analytics(months=months)
+
+
+@router.get("/analytics/user-activity", response_model=schemas.UserActivityAnalytics)
+def analytics_user_activity(
+    db: Session = Depends(get_db),
+    _: models.User = Depends(
+        require_roles(models.UserRole.super_admin, models.UserRole.admin, models.UserRole.moderator)
+    ),
+):
+    service = AdminService(db)
+    return service.get_user_activity_analytics()
+
+
+@router.get("/analytics/trends", response_model=schemas.AttendanceTrendAnalytics)
+def analytics_attendance_trend(
+    days: int = Query(30, ge=7, le=90),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(
+        require_roles(models.UserRole.super_admin, models.UserRole.admin, models.UserRole.moderator)
+    ),
+):
+    service = AdminService(db)
+    return service.get_attendance_trend_analytics(days=days)
+
+
+@router.get("/analytics/overview", response_model=schemas.AnalyticsOverviewResponse)
+def analytics_overview(
+    days: int = Query(30, ge=7, le=180),
+    months: int = Query(12, ge=3, le=24),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(
+        require_roles(models.UserRole.super_admin, models.UserRole.admin, models.UserRole.moderator)
+    ),
+):
+    service = AdminService(db)
+    return service.get_analytics_overview(days=days, months=months)
+
+
+@router.get("/attendance/corrections", response_model=schemas.AttendanceCorrectionListResponse)
+def list_attendance_corrections(
+    status: models.CorrectionStatus | None = Query(None),
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(
+        require_roles(models.UserRole.super_admin, models.UserRole.admin, models.UserRole.moderator)
+    ),
+):
+    service = AdminService(db)
+    total, records = service.list_corrections(status=status, skip=skip, limit=limit)
+    return {"total": total, "records": records}
+
+
+@router.patch("/attendance/corrections/{correction_id}/review", response_model=schemas.AttendanceCorrectionResponse)
+def review_attendance_correction(
+    correction_id: int,
+    payload: schemas.AttendanceCorrectionReview,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(
+        require_roles(models.UserRole.super_admin, models.UserRole.admin, models.UserRole.moderator)
+    ),
+):
+    service = AdminService(db)
+    return service.review_correction(correction_id=correction_id, payload=payload, admin=admin)
+
+
+@router.get("/leaves/requests", response_model=schemas.LeaveRequestListResponse)
+def list_leave_requests(
+    status: models.LeaveStatus | None = Query(None),
+    user_query: str | None = Query(None, description="Search by user name/email"),
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_roles(models.UserRole.super_admin, models.UserRole.admin)),
+):
+    service = LeaveService(db)
+    total, records = service.list_requests_for_admin(
+        status=status,
+        user_query=user_query,
+        skip=skip,
+        limit=limit,
     )
-    return [{"date": str(r.date), "count": r.count} for r in rows]
+    return {"total": total, "records": records}
+
+
+@router.patch("/leaves/requests/{leave_id}/review", response_model=schemas.LeaveRequestResponse)
+def review_leave_request(
+    leave_id: int,
+    payload: schemas.LeaveRequestReview,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_roles(models.UserRole.super_admin, models.UserRole.admin)),
+):
+    service = LeaveService(db)
+    return service.review_request(leave_id=leave_id, payload=payload)
+
+
+@router.get("/leaves/history", response_model=schemas.LeaveRequestListResponse)
+def leave_history(
+    skip: int = 0,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_roles(models.UserRole.super_admin, models.UserRole.admin)),
+):
+    service = LeaveService(db)
+    total, records = service.list_requests_for_admin(
+        status=None,
+        user_query=None,
+        skip=skip,
+        limit=limit,
+    )
+    return {"total": total, "records": records}
+
+
+@router.post("/announcements", response_model=schemas.AnnouncementDispatchResponse)
+def create_announcement(
+    payload: schemas.AdminAnnouncementCreate,
+    db: Session = Depends(get_db),
+    actor: models.User = Depends(require_roles(models.UserRole.super_admin, models.UserRole.admin)),
+):
+    service = NotificationService(db)
+    return service.broadcast_announcement(
+        actor=actor,
+        message=payload.message,
+        email_subject=payload.email_subject,
+    )
+
+
+@router.get("/auth-audit", response_model=schemas.AuthAuditListResponse)
+def list_auth_audit_logs(
+    skip: int = 0,
+    limit: int = 100,
+    event_type: models.AuthEventType | None = Query(None),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_roles(models.UserRole.super_admin)),
+):
+    service = AdminService(db)
+    total, records = service.list_auth_logs(skip=skip, limit=limit, event_type=event_type)
+    return {"total": total, "records": records}

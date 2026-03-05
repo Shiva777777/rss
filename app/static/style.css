@@ -355,7 +355,25 @@ body {
   color: var(--text-primary); font-family: var(--font); font-size: 0.95rem;
   transition: border-color 0.2s;
 }
+.form-group textarea {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 0.95rem;
+  resize: vertical;
+  min-height: 90px;
+  transition: border-color 0.2s;
+}
 .form-group input:focus {
+  outline: none;
+  border-color: var(--accent-orange);
+  background: rgba(255,140,0,0.04);
+}
+.form-group textarea:focus {
   outline: none;
   border-color: var(--accent-orange);
   background: rgba(255,140,0,0.04);
@@ -499,6 +517,7 @@ body {
 
 /* Dash Grid */
 .dash-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.leave-grid { margin-top: 1.5rem; }
 .dash-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -635,6 +654,30 @@ body {
   background: rgba(255,77,77,0.1); color: #ff4d4d;
   border-radius: var(--radius-xl); font-size: 0.75rem; font-weight: 700;
 }
+.badge-pending {
+  padding: 0.2rem 0.6rem;
+  background: rgba(255,215,0,0.13);
+  color: var(--accent-gold);
+  border-radius: var(--radius-xl);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.badge-approved {
+  padding: 0.2rem 0.6rem;
+  background: rgba(0,217,122,0.1);
+  color: var(--accent-green);
+  border-radius: var(--radius-xl);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.badge-rejected {
+  padding: 0.2rem 0.6rem;
+  background: rgba(255,77,77,0.1);
+  color: #ff4d4d;
+  border-radius: var(--radius-xl);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
 .btn-deactivate {
   padding: 0.25rem 0.6rem;
   background: rgba(255,77,77,0.1); border: 1px solid rgba(255,77,77,0.2);
@@ -650,6 +693,41 @@ body {
   font-size: 0.75rem; cursor: pointer; transition: all 0.2s;
 }
 .btn-reactivate:hover { background: rgba(0,217,122,0.2); }
+
+.btn-approve {
+  padding: 0.25rem 0.6rem;
+  background: rgba(0,217,122,0.1);
+  border: 1px solid rgba(0,217,122,0.25);
+  color: var(--accent-green);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.btn-reject,
+.btn-delete-leave {
+  padding: 0.25rem 0.6rem;
+  background: rgba(255,77,77,0.1);
+  border: 1px solid rgba(255,77,77,0.2);
+  color: #ff4d4d;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.admin-leave-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.reason-cell {
+  max-width: 260px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 .admin-filter-row,
 .att-filter-row { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
@@ -678,6 +756,53 @@ body {
   color: var(--text-secondary);
 }
 .chart-toolbar { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem; }
+
+.analytics-trend-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.analytics-trend-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1rem;
+}
+
+.analytics-label {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 0.25rem;
+}
+
+.analytics-value {
+  color: var(--text-primary);
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.analytics-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.analytics-chart-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+}
+
+.analytics-chart-card h4 {
+  font-size: 0.95rem;
+  margin-bottom: 0.8rem;
+  color: var(--text-primary);
+}
 
 /* ───────────────────────── TOAST ───────────────────────── */
 .toast {
@@ -715,11 +840,14 @@ body {
   .stats-row { grid-template-columns: 1fr 1fr; }
   .form-row { grid-template-columns: 1fr; }
   .nav-links .nav-link { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
+  .analytics-trend-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analytics-chart-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
   .stats-row { grid-template-columns: 1fr; }
   .navbar { padding: 0 1rem; }
   .modal-card { padding: 1.5rem; }
+  .analytics-trend-grid { grid-template-columns: 1fr; }
 }
 
 .hidden { display: none !important; }
